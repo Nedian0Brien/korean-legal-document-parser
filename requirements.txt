@@ -1,0 +1,10 @@
+langchain-text-splitters
+llama-index
+llama-index-embeddings-huggingface
+llama-index-vector-stores-qdrant
+pydantic
+qdrant-client
+sentence-transformers
+tqdm
+transformers
+pytest
