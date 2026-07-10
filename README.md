@@ -33,6 +33,13 @@ pip install -r requirements.txt
 
 ```bash
 python -m py_compile src/chunking/LegalDocumentProcessor.py
+pytest tests/test_public_api.py -q
+```
+
+## Python API
+
+```python
+from korean_legal_document_parser import LegalParserConfig, RegalDocumentParser
 ```
 
 기존 검증 스크립트 중 일부는 원본 개발 환경의 절대 경로를 포함합니다. repo 안정화 단계에서는 `tests/fixtures/` 기반 테스트로 교체해야 합니다.

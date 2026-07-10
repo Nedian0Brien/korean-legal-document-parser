@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "korean-legal-document-parser"
+version = "0.1.0"
+description = "Parser for Korean legal document structure and page markers."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "langchain-text-splitters",
+  "llama-index",
+  "llama-index-embeddings-huggingface",
+  "llama-index-vector-stores-qdrant",
+  "pydantic",
+  "qdrant-client",
+  "sentence-transformers",
+  "tqdm",
+  "transformers",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+packages = ["korean_legal_document_parser", "src", "src.chunking"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any, Sequence, Callable, Set
 from tqdm import tqdm
 from dataclasses import dataclass, field
+from korean_legal_document_parser.types import DocumentTask, LegalParserConfig
 
 # --- 의존성 설치 안내 ---
 # pip install llama-index qdrant-client llama-index-vector-stores-qdrant llama-index-embeddings-huggingface sentence-transformers langchain-text-splitters transformers
@@ -31,15 +32,6 @@ except ImportError as e:
     exit()
 
 # --- 1. 데이터 클래스 및 보조 클래스 ---
-
-@dataclass
-class DocumentTask:
-    """ 문서 처리 작업을 정의하는 데이터 클래스 """
-    source: str
-    category: str
-    collection_name: str
-    file_type: str = "문서"
-    recursive: bool = True
 
 @dataclass
 class _HeaderPattern:
@@ -198,17 +190,6 @@ class _Node:
         return res
 
 # --- 2. LegalDocumentParser (Refactored for S2B & Bottom-up) ---
-
-@dataclass
-class LegalParserConfig:
-    # 토크나이저 파일 경로 (tokenizer.json 등)
-    TOKENIZER_FILE_PATH: str = "./tokenizer.json"
-    
-    LEAF_TOKEN_SIZE: int = 512
-    LEAF_TOKEN_OVERLAP: int = 50
-    PARENT_TARGET_TOKEN_SIZE: int = 1500
-    PARENT_MAX_TOKEN_SIZE: int = 2048
-    OUTPUT_DIR: str = "./output"
 
 class RegalDocumentParser(NodeParser):
     # Pydantic PrivateAttr로 private 속성 선언 (언더스코어로 시작해야 함)
