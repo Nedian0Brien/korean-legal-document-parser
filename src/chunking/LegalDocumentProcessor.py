@@ -14,14 +14,10 @@ from korean_legal_document_parser.types import DocumentTask, LegalParserConfig
 # pip install llama-index qdrant-client llama-index-vector-stores-qdrant llama-index-embeddings-huggingface sentence-transformers langchain-text-splitters transformers
 
 try:
-    from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, Document, Settings, StorageContext
+    from llama_index.core import SimpleDirectoryReader, Document
     from llama_index.core.node_parser import NodeParser
     from llama_index.core.schema import TextNode, BaseNode, NodeRelationship, RelatedNodeInfo
-    from llama_index.vector_stores.qdrant import QdrantVectorStore
-    from llama_index.embeddings.huggingface import HuggingFaceEmbedding
     from pydantic import PrivateAttr
-    import qdrant_client
-    from qdrant_client.models import VectorParams, Distance
     
     # 텍스트 스플리터 및 토크나이저
     from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -1185,96 +1181,15 @@ class RegalDocumentParser(NodeParser):
 
 class LegalDocumentProcessor:
     def __init__(self, config: LegalParserConfig, test_mode: bool = True):
+        from korean_legal_document_parser.storage import LegalDocumentStorage
+
         self.config = config
         self.test_mode = test_mode
-        self.qdrant_client = None
-        
-        if not test_mode:
-            print("🔧 운영 모드: 임베딩 및 VectorDB를 초기화합니다.")
-            Settings.embed_model = HuggingFaceEmbedding(model_name="jhgan/ko-sroberta-multitask")
-            Settings.llm = None
-            q_url = os.getenv("QDRANT_URL", "http://localhost:6333")
-            self.qdrant_client = qdrant_client.QdrantClient(url=q_url)
-        else:
-            print("🧪 테스트 모드: 로컬 파일 저장만 수행합니다.")
-            Settings.embed_model = None
-            Settings.llm = None
-
-    def _setup_qdrant_collections(self, tasks: List[DocumentTask]):
-        if self.test_mode or not self.qdrant_client: return
-        
-        unique_collections = {task.collection_name for task in tasks}
-        try:
-            vector_size = len(Settings.embed_model.get_text_embedding("test"))
-        except:
-            vector_size = 768
-
-        print("🔄 컬렉션 초기화 작업을 수행합니다...")
-        for col_name in unique_collections:
-            if self.qdrant_client.collection_exists(col_name):
-                self.qdrant_client.delete_collection(col_name)
-                print(f"   🗑️  기존 컬렉션 삭제됨: {col_name}")
-            
-            self.qdrant_client.create_collection(
-                collection_name=col_name,
-                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
-            )
-            print(f"   ✅ 새 컬렉션 생성됨: {col_name}")
-
-    def index_nodes(self, nodes: List[BaseNode], collection_name: str):
-        if self.test_mode: return
-        
-        print(f"🚀 '{collection_name}' 컬렉션에 {len(nodes)}개 노드 업로드 시작...")
-        try:
-            vector_store = QdrantVectorStore(
-                client=self.qdrant_client, 
-                collection_name=collection_name,
-                enable_hybrid=False, 
-                batch_size=64
-            )
-            storage_context = StorageContext.from_defaults(vector_store=vector_store)
-            VectorStoreIndex(nodes, storage_context=storage_context, show_progress=True)
-            print(f"✅ 업로드 완료.")
-        except Exception as e:
-            print(f"❌ 업로드 실패: {e}")
-
-    def _save_outputs(self, tree: _Node, doc_nodes: List[TextNode], parser: RegalDocumentParser,
-                      collection_name: str, category: str, source_filename: str):
-        target_dir = os.path.join(self.config.OUTPUT_DIR, collection_name, category)
-        os.makedirs(target_dir, exist_ok=True)
-        base_name = os.path.splitext(source_filename)[0]
-
-        # 마크다운 리포트 생성 (트리 + 원본 구조 + Parent-Leaf 관계)
-        md_content = parser.tree_to_structured_md(tree, doc_nodes)
-        with open(os.path.join(target_dir, f"{base_name}_structured.md"), "w", encoding="utf-8") as f:
-            f.write(md_content)
-
-        json_path = os.path.join(target_dir, f"{base_name}_chunks.json")
-        chunks_data = []
-        for n in doc_nodes:
-            # relationships 처리: 리스트인 경우와 단일 객체인 경우를 구분
-            rels = {}
-            for k, v in n.relationships.items():
-                if v is None:
-                    rels[str(k.value)] = None
-                elif isinstance(v, list):
-                    rels[str(k.value)] = [item.node_id if item else None for item in v]
-                else:
-                    rels[str(k.value)] = v.node_id
-
-            chunks_data.append({
-                "id": n.node_id,
-                "text": n.text,
-                "metadata": n.metadata,
-                "relationships": rels
-            })
-            
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(chunks_data, f, ensure_ascii=False, indent=4)
+        self.storage = LegalDocumentStorage(config=config, test_mode=test_mode)
 
     def run(self, tasks: List[DocumentTask]):
         print(f"🚀 총 {len(tasks)}개의 작업을 시작합니다.")
-        self._setup_qdrant_collections(tasks)
+        self.storage.setup_qdrant_collections(tasks)
 
         for task in tasks:
             print(f"\n[작업 시작] {task.category} ({task.source})")
@@ -1300,10 +1215,10 @@ class LegalDocumentProcessor:
                         doc.metadata.get("source") or
                         doc.metadata.get("file_path", f"doc_{uuid.uuid4().hex[:8]}.md")
                     ).name
-                    self._save_outputs(tree, doc_nodes, parser, task.collection_name, task.category, source_filename)
+                    self.storage.save_outputs(tree, doc_nodes, parser, task.collection_name, task.category, source_filename)
 
                 if not self.test_mode:
-                    self.index_nodes(all_task_nodes, task.collection_name)
+                    self.storage.index_nodes(all_task_nodes, task.collection_name)
 
             except Exception as e:
                 print(f"❌ 오류 발생: {e}")
@@ -1315,26 +1230,6 @@ class LegalDocumentProcessor:
 # --- 4. 실행부 ---
 
 if __name__ == "__main__":
-    # 설정 초기화
-    config = LegalParserConfig(
-        TOKENIZER_FILE_PATH="./tokenizer.json", # 실제 파일 경로로 수정 필요
-        LEAF_TOKEN_SIZE=512,
-        LEAF_TOKEN_OVERLAP=50,
-        PARENT_TARGET_TOKEN_SIZE=1500,
-        PARENT_MAX_TOKEN_SIZE=2048,
-        OUTPUT_DIR="/home/coder/project/data_job/output"
-    )
-    
-    tasks = [
-        DocumentTask(
-            source="/home/coder/project/data_job/data/laws_storage",
-            category="법령",
-            collection_name="rag_legal_docs_v1",
-            file_type="고시",
-            recursive=True
-        ),
-    ]
+    from korean_legal_document_parser.cli import main
 
-    # 프로세서 실행
-    processor = LegalDocumentProcessor(config=config, test_mode=True)
-    processor.run(tasks)
+    main()

@@ -23,6 +23,9 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest"]
 
+[project.scripts]
+korean-legal-document-parser = "korean_legal_document_parser.cli:main"
+
 [tool.setuptools]
 packages = ["korean_legal_document_parser", "src", "src.chunking"]
 

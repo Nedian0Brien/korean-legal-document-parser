@@ -15,6 +15,10 @@ Small-to-Big RAG 청킹과 Qdrant ingestion/retrieval은 별도 저장소인 `sm
 ## 구조
 
 ```text
+korean_legal_document_parser/
+├── cli.py
+├── storage.py
+└── types.py
 src/chunking/
 └── LegalDocumentProcessor.py
 docs/
@@ -32,7 +36,10 @@ pip install -r requirements.txt
 ## 검증
 
 ```bash
-python -m py_compile src/chunking/LegalDocumentProcessor.py
+python -m py_compile \
+  src/chunking/LegalDocumentProcessor.py \
+  korean_legal_document_parser/storage.py \
+  korean_legal_document_parser/cli.py
 pytest tests/test_public_api.py -q
 ```
 
